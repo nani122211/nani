@@ -14,14 +14,17 @@ libname out '/workspace/ccsec/reports/Payment_Behavior/data';
 %macro wrk;
 
 %if %substr(&m,5,2) = 01 %then %do;
-%let mp-%eval(&m-89);
+%let mp = %eval(&m-89);
 %end;
 
-%else %if %substr(&m,5,2) = 02 %then %do; %let mp-%eval(&m-90);
+%else %if %substr(&m,5,2) = 02 %then %do; 
+%let mp =%eval(&m-90);
 %end;
-%else %if %substr(&m,5,2) = 03 %then %do; %let mp=&m;
+%else %if %substr(&m,5,2) = 03 %then %do; 
+%let mp=&m;
 %end;
-%else %if %substr(&m,5,2) = 04 %then %do; %let mp-%eval(&m-1);
+%else %if %substr(&m,5,2) = 04 %then %do; 
+%let mp = %eval(&m-1);
 %end;
 %else %if %substr(&m,5,2) = 05 %then %do;
 %let mp = %eval(&m-2);
@@ -33,13 +36,13 @@ libname out '/workspace/ccsec/reports/Payment_Behavior/data';
 %end;
 %let mp=%eval(&m-1);
 %else %if %substr(&m, 5,2) = 08 %then %do; 
-%let mp-%eval(&m-2);
+%let mp =%eval(&m-2);
 %end;
 %else %if %substr(&m,5,2) = 09 %then %do;
 %end;
 %let mp=&m;
 %else %if %substr(&m, 5,2)= 10 %then %do;
-%let mp-%eval(&m-1);
+%let mp = %eval(&m-1);
 %end;
 %else %if %substr(&m,5,2) = 11 %then %do;
 %let mp = %eval(&m-2);
@@ -48,25 +51,29 @@ libname out '/workspace/ccsec/reports/Payment_Behavior/data';
 %let mp=&m;
 %end;
 
-%if %substr(&m, 5,2) = 01 %then %let mp1-%eval (&m-89);
+%if %substr(&m, 5,2) = 01 %then %let mp1 = %eval (&m-89);
 %else %let mp1=%eval(&m-1);
 
 /**** creates macro date variables used for the data pull ****/
 
 data _null_;
      bomdt = input("&m.01", yymmdd8.);
-     nextmth=intnx ("month", bomdt,1); eomdt-intnx("day", nextmth, -1);
-     call symput('mmmth', cat("*", put (eomdt, YYMMDD10.), "'")); 
-     call symput('bom', cat("*", put (bomdt, YYMMDD10.),"*")); 
+     nextmth=intnx ("month", bomdt,1);
+	 eomdt = intnx("day", nextmth, -1);
+     call symput('mmmth', cat("'", put (eomdt, YYMMDD10.), "'")); 
+     call symput('bom', cat("'", put (bomdt, YYMMDD10.),"'")); 
      call symput('mth', put (eomdt, month.));
      call symput('yr', put (eomdt,year4.));
      call symput('yr', put (eomdt,year4.));
      call symput('dy', put (eomdt, day2.));
-     call symput('eom', cat("*", put (eomdt, YYMMDD10.), "'"));
+     call symput('eom', cat("'", put (eomdt, YYMMDD10.), "'"));
      x=intnx('day', "&sysdate9"d, -1);
-     call symput('currday', cat("*", put(x,YYMMDD10.),"")); call symput('dy2', put(x, day2.));
-     bomdtp-input("&mp1.01",yymmdd8.); nextmthp-intnx ("month", bomdtp,1); eomdtp-intnx("day", nextmthp,-1);
-     call symput('eomp', cat("*", put (eomdtp, YYMMDD10.),"*"));
+     call symput('currday', cat("'", put(x,YYMMDD10.),"'")); 
+	 call symput('dy2', put(x, day2.));
+     bomdtp =input("&mp1.01",yymmdd8.); 
+	 nextmthp = intnx ("month", bomdtp,1); 
+	 eomdtp =intnx("day", nextmthp,-1);
+     call symput('eomp', cat("'", put (eomdtp, YYMMDD10.),"'"));
      call symput('title2', cat ("As of billing date prior to Quarter ended ", "&mth","/", "&dy","/", "&yr"));
 run;
 
@@ -120,10 +127,11 @@ SELECT
       MM. CURRENT BALANCE AS BALEOM, MMP.CURRENT_BALANCE AS BALBOM, MM.HIST_LS_BAL AS BALEOC, MMP.HIST_LS_BAL AS BALBOC,
       MM. EXTERNAL_STATUS AS EXSTATCD,
       MMP.LS BILLED_PAY_DUE AS DUEMINLSTMTH,
-      CASE WHEN MM. EXTERNAL_STATUS in ('','A','') THEN 1 ELSE END AS OPENind, CASE WHEN MM. EXTERNAL_STATUS='Z' THEN 1 ELSE 0 END AS CO
+      CASE WHEN MM. EXTERNAL_STATUS in ('','A','') THEN 1 ELSE END AS OPENind,
+	  CASE WHEN MM. EXTERNAL_STATUS='Z' THEN 1 ELSE 0 END AS CO
 FROM
 EIW_S_FDRCC_V1.MM_MONTHLY_ALL MM
-LEFT OUTER JOIN EIW_S_FDRCC_V1.MM_MONTHLY ALL MMP ON MM.ACCOUNT_NUMBER-MMP.ACCOUNT_NUMBER AND MMP.ASOFDATE=&eomp
+LEFT OUTER JOIN EIW_S_FDRCC_V1.MM_MONTHLY_ALL MMP ON MM.ACCOUNT_NUMBER = MMP.ACCOUNT_NUMBER AND MMP.ASOFDATE=&eomp
 WHERE
    MM.ASOFDATE=&eom AND
    MM.CTGY_CD='E'
@@ -144,13 +152,12 @@ FROM
 EIW_S_FDRCC_V1.STMT_EMSR_DETL_DLY_ALL TRAN
 WHERE
 TRAN.DATA_MONTH_DATE IN (&bom) AND
-TRAN.CKEY SYS IN (3531', '4644', '5299', '5581', '5583', '5765', '6298', '8413', '8414', '8415') AND
+TRAN.CKEY_SYS IN (3531', '4644', '5299', '5581', '5583', '5765', '6298', '8413', '8414', '8415') AND
 TRAN.CDTL_ITEM_AMT<>0
 GROUP BY
 TRAN.ACCOUNT_NUMBER
 ORDER BY
 TRAN.ACCOUNT_NUMBER
-
 );
 
 disconnect from teradata;
@@ -235,7 +242,7 @@ ods html body="/workspace/ccsec/reports/Payment_Behavior/output/Payment_Behavior
          column ctgy acct_count, (sum pçtsum);
          define ctgy / group format= $pymtcat. 'Category';
          define acct_count / format=comma16.0 'Total Accounts';
-         define sum / format-comma16.0 'Count';
+         define sum / format = comma16.0 'Count';
          define pctsum / 'Percent of Accounts' format=percent8.2;
          rbreak after / dol summarize;
          where co=0;
