@@ -6,23 +6,25 @@ libname mockpool '/workspace2/ccsec/mockpool/test';
 libname sds oracle user=&sdslog pass="&sdspwd" path-p011rdr schema-sds;
 
 /****CHECK BELOW AGAINST EMAIL RECEIVED FROM TREASURY TO ENSURE BELOW CRITERIA MATCHES STATED CRITERIA IN THE EMAIL *****/
+
 %let m=202311;                    /* Pick the month of the data to use to create the Mock Pool */
 %let totpool=4100000000;          /* Define the Total Balance we want to be in the Mock Pool */
 %let capct=0.160;                 /* Determine the Maximum Percent of Balance from California accounts we want to be in the Mock Pool */ 
 %let fico659pct=.045;         /* Determine the Maximum Percent of Balance from accounts with FICO<660 we want to be in the Mock Pool */ 
 
-%let open_filter=1;          /* Use to ensure only Open Accounts are included in the Mock Pool */
-
-%let exstat_filter=('',''); /* External Status' to include in the Mock Pool */
-%let mob_filter=24;          /* Minimum MOB (month-on-book) to include in the Mock Pool */
-%let currbal_filter=.01;    /* Minimum Balance to include in the Mock Pool */
-%let del_filter=0;         /* Use to ensure only non-delinquent accounts are included in the Mock Pool */
-%let fico_filter=630;      /* Minimum FICO to include in the Mock Pool */
+%let open_filter=1;           /* Use to ensure only Open Accounts are included in the Mock Pool */
+%let exstat_filter=('',' ');   /* External Status' to include in the Mock Pool */
+%let mob_filter=24;            /* Minimum MOB (month-on-book) to include in the Mock Pool */
+%let currbal_filter=.01;      /* Minimum Balance to include in the Mock Pool */
+%let del_filter=0;            /* Use to ensure only non-delinquent accounts are included in the Mock Pool */
+%let fico_filter=630;        /* Minimum FICO to include in the Mock Pool */
 %let system_filter=(3531, 4644, 5299, 5581, 5583, 5765, /*6298, */ 8413, 8414, 8415);
- /* System Numbers to include from the Mock Pool (identifies GPCC)*/ 
+                                                 /* System Numbers to include from the Mock Pool (identifies GPCC)*/ 
 %let portexcl_filter=('002', '003', '006', '800', '801', '810', '811', '812', '813', '901'); /* Portfolio Numbers to exclude from the Mock Pool (removes
 participations).*/
-%let prodtypeexcl_filter=("002", "027", "041", "044", "058", "059", "061", "062", "087", "088"); /* Product Type codes to exclude from the Mock Pool (removes Secured Accounts)*/ 
+%let prodtypeexcl_filter=("002", "027", "041", "044", "058", "059", "061", "062", "087", "088"); 
+/* Product Type codes to exclude from the Mock Pool (removes Secured Accounts)*/ 
+
 %let statecd_filter=('AA', 'AE', 'AK', 'AL', 'AP', 'AR', 'AS', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA', 'GU', 'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD', 'ME', 'MI', 'MN', 'MO', 'MP', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ', 'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VI', 'VT', 'WA', 'WI', 'WV', 'WY'); /* Postal Codes to include in the Mock Pool (keeps only US States/Territories/Military Bases) */
 
 /**END CRITERIA SECTION*/
@@ -36,6 +38,7 @@ participations).*/
 %else %do;
   %let mp=%eval(&m-1);
 %end;
+
 %if %substr(&m, 5,2) <= 02 %then %do;
   %let mp2=%eval(&m-90);
 %end;
@@ -44,16 +47,19 @@ participations).*/
 %end;
 
 data _null_;
-run;
-bomdt-input("&m. 01", yymmdd8.); nextmth-intnx("month", bomdt, 1); eomdt-intnx ("day", nextmth, -1);
-call symput('mmmth', cat("*", put (eomdt, YYMMDD10.),"")); call symput('bom', cat("*", put (bomdt, YYMMDD10.),"*")); 
-call symput('mth', put (eomdt, month.));
-call symput('yr', put (eomdt,year4.));
-call symput('dy', put (eomdt, day2.));
-call symput('eom', put (eomdt, MMDDYY10.));
-x-intnx('day', "&sysdate9"d, -1);
-call symput('currday', cat("*", put(x, YYMMDD10.),"*")); 
-call symput('dy2', put(x, day2.));
+     bomdt=input("&m. 01", yymmdd8.); 
+	 nextmth=intnx("month", bomdt, 1); 
+	 eomdt=intnx ("day", nextmth, -1);
+     call symput('mmmth', cat("'", put (eomdt, YYMMDD10.),"'"));
+	 call symput('bom', cat("'", put (bomdt, YYMMDD10.),"'")); 
+     call symput('mth', put (eomdt, month.));
+     call symput('yr', put (eomdt,year4.));
+     call symput('dy', put (eomdt, day2.));
+     call symput('eom', put (eomdt, MMDDYY10.));
+	 
+     x=intnx('day', "&sysdate9"d, -1);
+     call symput('currday', cat("'", put(x, YYMMDD10.),"'")); 
+     call symput('dy2', put(x, day2.));
 
 ﻿run;
 
@@ -103,7 +109,7 @@ run;
 
 data Sds_r_pool;
 set Sds_r_pool;
-account_id2-input (account_id,10.);
+account_id2 =input (account_id,10.);
 run;
 
 proc sort data=Sds_r_pool;
@@ -114,16 +120,14 @@ run;
 
 data Sds_r_pool;
 set Sds_r_pool;
-if exstatcd in ('','') then open-1; else open=0; 
+if exstatcd in ('',' ') then open= 1; else open=0; 
 mob=sum(intck('MONTH', datepart (open_date), TODAY())+1,0); 
 length ficocat $7.
          mobcat balcat $4.;
 if fico_curr lt 630 then ficocat='<630'; else
 if fico_curr lt 660 then ficocat='630-659'; else
-if fico_curr lt 690 then ficocat='660-689'; 
-else if fico_curr lt 720 then ficocat='690-719'; else
-                                            ficocat='720+';
-											
+if fico_curr lt 690 then ficocat='660-689'; else 
+if fico_curr lt 720 then ficocat='690-719'; else ficocat='720+';											
 if mob lt 24 then mobcat='<24'; else mobcat='>=24';
 if currbal gt 0 then balcat='>0'; else balcat='<=0'; 
 run;
@@ -139,7 +143,7 @@ set pre_exclusion;
 if PORTNO in &portexcl_filter then portno_excl='Y'; else portno_excl='N';
 if statecd in &statecd_filter then state_excl='N'; else state_excl='Y';
 if exstatcd in &exstat_filter then exstat_excl='N'; else exstat_excl='Y';
-if DELNOCYCES-0 then del_excl='N'; else del_excl ='Y';
+if DELNOCYCES = 0 then del_excl='N'; else del_excl ='Y';
 if system in &system_filter then sys_excl='N'; else sys_excl='Y';
 if producttypecd in &prodtypeexcl_filter then prodtype_excl='Y'; else prodtype_excl='N'; 
 run;
@@ -151,7 +155,7 @@ replace;
 sheet="PreExclusion";
 run;
 
-/* create separate step for each exclusion step, store 2 datasets - 1 with all the "Fails" */
+/********** create separate step for each exclusion step, store 2 datasets - 1 with all the "Fails" **********/
 
 proc datasets lib-mockpool nolist;
 delete fail;
@@ -160,7 +164,7 @@ run;
 
 data fail pass;
 set Sds_r_pool;
-if open-&open_filter then output pass; else output fail;
+if open =&open_filter then output pass; else output fail;
 run;
 
 data mockpool.fail;
@@ -191,7 +195,6 @@ run;
 
 data fail; 
 set fail;
-
 length fail_reason $15.;
 fail_reason="mob filter";
 run;
@@ -335,7 +338,7 @@ var currbal;
 output out = post_exclusion sum=;
 run;
 
-proc export data-post_exclusion
+proc export data = post_exclusion
 dbms=xlsx
 outfile="/workspace/ccsec/mockpool/exclusion_waterfall.xlsx"
 replace;
@@ -359,9 +362,7 @@ set sds_r_pool2 (keep-acct_number account_id currbal exstatcd statecd open fico_
                statecd in &statecd_filter
 
        ));
-
-       if statecd='CA' and fico_curr lt 660 then output ca_fico_1t660;
-
+      if statecd='CA' and fico_curr lt 660 then output ca_fico_1t660;
 else if statecd='CA' and fico_curr ge 660 then output ca_fico_ge660; 
 else if   fico_curr lt 660 then output other_fico_1t660;
                       else output other_fico_ge660;
@@ -389,7 +390,7 @@ data &fn;
 set &fn;
 retain running_bal;
 if _n_=1 then running_bal=currbal;
-      else running_bal-running_bal+currbal;
+      else running_bal = running_bal+currbal;
 	  
 run;
 %mend;
@@ -407,7 +408,7 @@ run;
 data other_fico_1t660;
 set other_fico_1t660;
 targetbal=(&totpool* (1-&capct)*(&fico659pct)); 
-diff-targetbal-running_bal;
+diff=targetbal-running_bal;
 run;
 
 data ca_fico_ge660;
@@ -445,148 +446,148 @@ set ca_fico_1t660;
 where diff ge diffcutoff;
 run;
 
-/******** FIND MINIMUM DIFFERENCE BETWEEN DESIRED BALANCE AND RUNNING BALANCE *******/ 
+	/******** FIND MINIMUM DIFFERENCE BETWEEN DESIRED BALANCE AND RUNNING BALANCE *******/ 
 
-proc sql noprint;
-select min (diff)
-into :caficoge660_min
-from ca_fico_ge660
-where diff ge 0;
-quit;
-run;
-%put &caficoge660_min;
+	proc sql noprint;
+	select min (diff)
+	into :caficoge660_min
+	from ca_fico_ge660
+	where diff ge 0;
+	quit;
+	run;
+	%put &caficoge660_min;
 
-/*******INSERT MINIMUM DIFFERENCE INTO DATASET *******/
+	/*******INSERT MINIMUM DIFFERENCE INTO DATASET *******/
 
-data ca_fico_ge660;
-set ca_fico_ge660;
-diffcutoff=&caficoge660_min;
-run;
+	data ca_fico_ge660;
+	set ca_fico_ge660;
+	diffcutoff=&caficoge660_min;
+	run;
 
-/******** KEEP ACCOUNTS WHERE DIFFERENCE BETWEEN TARGET BALANCE AND RUNNING BALANCE >0 *******/ data ca_fico_ge660_fnl;
-set ca_fico_ge660;
-where abs(diff-diffcutoff) ge .000000000001 and diff ge 0;
-run;
+	/******** KEEP ACCOUNTS WHERE DIFFERENCE BETWEEN TARGET BALANCE AND RUNNING BALANCE >0 *******/ data ca_fico_ge660_fnl;
+	set ca_fico_ge660;
+	where abs(diff-diffcutoff) ge .000000000001 and diff ge 0;
+	run;
 
-/******** FIND MINIMUM DIFFERENCE BETWEEN DESIRED BALANCE AND RUNNING BALANCE *******/ 
+	/******** FIND MINIMUM DIFFERENCE BETWEEN DESIRED BALANCE AND RUNNING BALANCE *******/ 
 
-proc sql noprint;
-select min (diff)
-into :othrficolt660_min
-from Other_fico_1t660
-where diff ge 0; quit;
-run;
-%put &othrficolt660_min;
+	proc sql noprint;
+	select min (diff)
+	into :othrficolt660_min
+	from Other_fico_1t660
+	where diff ge 0; quit;
+	run;
+	%put &othrficolt660_min;
 
-/******** INSERT MINIMUM DIFFERENCE INTO DATASET *******/
+	/******** INSERT MINIMUM DIFFERENCE INTO DATASET *******/
 
-data Other_fico_1t660;
-set Other_fico_1t660;
-diffcutoff=&othrficolt660_min;
-run;
+	data Other_fico_1t660;
+	set Other_fico_1t660;
+	diffcutoff=&othrficolt660_min;
+	run;
 
-/******* KEEP ACCOUNTS WHERE DIFFERENCE BETWEEN TARGET BALANCE AND RUNNING BALANCE >0 *******/
-data Other_fico_1t660_fnl;
-set Other_fico_1t660;
-where diff ge diffcutoff;
-run;
+	/******* KEEP ACCOUNTS WHERE DIFFERENCE BETWEEN TARGET BALANCE AND RUNNING BALANCE >0 *******/
+	data Other_fico_1t660_fnl;
+	set Other_fico_1t660;
+	where diff ge diffcutoff;
+	run;
 
-/******** CHECK BALANCES ON BOTH CA BUCKETS AND NON-CA FICO<660 BUCKET *******/
-proc means data=ca_fico_1t660_fnl sum;
-var currbal;
-title "CA, FICO < 660";
-run;
+	/******** CHECK BALANCES ON BOTH CA BUCKETS AND NON-CA FICO<660 BUCKET *******/
+	proc means data=ca_fico_1t660_fnl sum;
+	var currbal;
+	title "CA, FICO < 660";
+	run;
 
-proc means data=ca_fico_ge660_fnl sum;
-var currbal;
-title "CA, FICO >= 660";
-run;
+	proc means data=ca_fico_ge660_fnl sum;
+	var currbal;
+	title "CA, FICO >= 660";
+	run;
 
-proc means data=Other_fico_1t660_fnl sum;
-var currbal;
-title "NON-CA, FICO < 660";
-run;
+	proc means data=Other_fico_1t660_fnl sum;
+	var currbal;
+	title "NON-CA, FICO < 660";
+	run;
 
-/****DETERMINE CUMULATIVE DIFFERENCE OF BOTH CA BUCKETS AND NON-CA FICO<660 BUCKET. *******/
+	/****DETERMINE CUMULATIVE DIFFERENCE OF BOTH CA BUCKETS AND NON-CA FICO<660 BUCKET. *******/
 
-proc means data=Other_fico_1t660_fnl min noprint;
-var diffcutoff;
-output out =noncaficolt660_diff min (diffcutoff)=noncaficolt660_diff; 
-run;
+	proc means data=Other_fico_1t660_fnl min noprint;
+	var diffcutoff;
+	output out =noncaficolt660_diff min (diffcutoff)=noncaficolt660_diff; 
+	run;
 
-proc means data-Ca_fico_1t660_fnl min noprint;
-var diffcutoff;
-output out = caficolt660_diff min (diffcutoff)=caficolt660_diff;
-run;
+	proc means data=Ca_fico_1t660_fnl min noprint;
+	var diffcutoff;
+	output out = caficolt660_diff min (diffcutoff)=caficolt660_diff;
+	run;
 
-proc means data=Ca_fico_ge660_fnl min noprint;
-var diffcutoff;
-output out = caficoge660_diff min(diffcutoff)=caficoge660_diff;
-run;
+	proc means data=Ca_fico_ge660_fnl min noprint;
+	var diffcutoff;
+	output out = caficoge660_diff min(diffcutoff)=caficoge660_diff;
+	run;
 
-data tempdiff;
-merge noncaficolt660_diff
-      caficolt660_diff
-      caficoge660_diff;
-by_type_;
-run;
+	data tempdiff;
+	merge noncaficolt660_diff
+		  caficolt660_diff
+		  caficoge660_diff;
+	by_type_;
+	run;
 
-data tempdiff;
-set tempdiff;
-tempdiff=sum(noncaficolt660_diff, caficolt660_diff, caficoge660_diff,0);
-run;
+	data tempdiff;
+	set tempdiff;
+	tempdiff=sum(noncaficolt660_diff, caficolt660_diff, caficoge660_diff,0);
+	run;
 
-/******** INSERT CUMULATIVE DIFFERENCE OF BOTH CA BUCKETS AND NON-CA FICO<660 BUCKET INTO NON-CA FICO>660 BUCKET *******/ 
+	/******** INSERT CUMULATIVE DIFFERENCE OF BOTH CA BUCKETS AND NON-CA FICO<660 BUCKET INTO NON-CA FICO>660 BUCKET *******/ 
 
-data Other_fico_ge660;
-set Other_fico_ge660;
-_type_=0;
-run;
+	data Other_fico_ge660;
+	set Other_fico_ge660;
+	_type_=0;
+	run;
 
-﻿data other_fico_ge660;
-merge Other_fico_ge660 (in=a)
-tempdiff (keep=_TYPE_ tempdiff);
-if a;
-by _type_; 
-run;
+	﻿data other_fico_ge660;
+	merge Other_fico_ge660 (in=a)
+	tempdiff (keep=_TYPE_ tempdiff);
+	if a;
+	by _type_; 
+	run;
 
-/******** RECALCULATE DESIRED BALANCE OF NON-CA FICO<660 BUCKET TO ACCOUNT FOR CUM DIFFERENCE OF OTHER 3 BUCKETS *******/ 
+	/******** RECALCULATE DESIRED BALANCE OF NON-CA FICO<660 BUCKET TO ACCOUNT FOR CUM DIFFERENCE OF OTHER 3 BUCKETS *******/ 
 
-data Other_fico_ge660;
-set Other_fico_ge660; 
-targetba12 = targetbal+tempdiff; 
-diff2 = targetbal2-running_bal;
-run;
-
-
-/******** FIND MINIMUM DIFFERENCE BETWEEN DESIRED BALANCE AND RUNNING BALANCE *******/
-proc sql noprint; select max(diff2)
-into :othrficoge660_min
-from Other_fico_ge660
-where diff2 lt 0;
-quit;
-run;
-%put &othrficoge660_min;
+	data Other_fico_ge660;
+	set Other_fico_ge660; 
+	targetba12 = targetbal+tempdiff; 
+	diff2 = targetbal2-running_bal;
+	run;
 
 
-/******** INSERT MINIMUM DIFFERENCE INTO DATASET *******/
-data Other_fico_ge660;
-set Other_fico_ge660;
-diffcutoff = &othrficoge660_min;
-run;
+	/******** FIND MINIMUM DIFFERENCE BETWEEN DESIRED BALANCE AND RUNNING BALANCE *******/
+	proc sql noprint; select max(diff2)
+	into :othrficoge660_min
+	from Other_fico_ge660
+	where diff2 lt 0;
+	quit;
+	run;
+	%put &othrficoge660_min;
 
-/******** KEEP ACCOUNTS WHERE DIFFERENCE BETWEEN TARGET BALANCE AND RUNNING BALANCE >0 *******/
 
-data Other_fico_ge660_fnl;
-set Other_fico_ge660;
-where diff2 ge diffcutoff;
-run;
+	/******** INSERT MINIMUM DIFFERENCE INTO DATASET *******/
+	data Other_fico_ge660;
+	set Other_fico_ge660;
+	diffcutoff = &othrficoge660_min;
+	run;
 
-/******** CHECK BALANCES ON NON-CA FICO<660 BUCKET *******/
-proc means data=Other_fico_ge660_fnl sum;
-var currbal;
-title "NON-CA, FICO >= 660";
-run;
+	/******** KEEP ACCOUNTS WHERE DIFFERENCE BETWEEN TARGET BALANCE AND RUNNING BALANCE >0 *******/
+
+	data Other_fico_ge660_fnl;
+	set Other_fico_ge660;
+	where diff2 ge diffcutoff;
+	run;
+
+	/******** CHECK BALANCES ON NON-CA FICO<660 BUCKET *******/
+	proc means data=Other_fico_ge660_fnl sum;
+	var currbal;
+	title "NON-CA, FICO >= 660";
+	run;
 
 /*****COMBINE ALL 4 BUCKETS INTO 1 DATASET *******/
 
@@ -602,14 +603,15 @@ if fico_curr lt 720 then ficocat='690-719'; else
 run;
 											 
 											
-/******** CHECK TOTAL BALANCES, COMPARE AGAINST DESIRED INPUT *******/ proc means data-mockpool.final n sum;
+/******** CHECK TOTAL BALANCES, COMPARE AGAINST DESIRED INPUT *******/ 
+proc means data-mockpool.final n sum;
 var currbal;
 title "All";
 run;
 
 /******** CHECK TOTAL CA BALANCES *******/
 
-proc means data-mockpool.final n sum missing nway;
+proc means data=mockpool.final n sum missing nway;
 var currbal;
 class statecd;
 where statecd='CA';
@@ -617,27 +619,27 @@ title "All CA";
 run;
 
 /******** CHECK TOTAL BALANCES BY FICO *******/
-proc means data-mockpool.final n sum missing nway; 
+proc means data=mockpool.final n sum missing nway; 
 var currbal;
 class ficocat;
 title "All by Fico";
 run;
 
 /******** CHECK OTHER CATEGORICAL CRITERIA **** **/
-proc freq data-mockpool.final;
+proc freq data=mockpool.final;
 table statecd DELNOCYCES portno exstatcd open system producttypecd /*PMTDEFEVR*/ / missing; 
 title "Other Criteria";
 run;
 
 /******** CHECK MONTH-ON-BOOK>=24*******/
 
-proc means data-mockpool.final min pl q1 median q3 p99 max;
+proc means data=mockpool.final min pl q1 median q3 p99 max;
 var mob;
 title "Month-on-Book Check (no accounts < 24 mob)";
 run;
 
 /******** CHECK BALANCE>0 *******/
-proc means data-mockpool.final min p1 q1 median q3 p99 max; 
+proc means data=mockpool.final min p1 q1 median q3 p99 max; 
 var currbal;
 title "Balance Check (No accounts with balance<=0";
 run;
@@ -662,14 +664,14 @@ run;
 ﻿
 
 /******** CHECK FOR SECURED ACCOUNTS *******/
-proc freq data-mockpool.final;
+proc freq data=mockpool.final;
 table producttypecd / missing;
 where producttypecd in ('002', '027', '041', '044', '058', '059', '061', '062', '087', '088');
 title "Secured Product Type Codes";
 run;
 
 /******* CHECK FOR NON-US STATE/TERRITORY/MILITARY BASE *******/
-proc freq data-mockpool.final;
+proc freq data=mockpool.final;
 table statecd / missing;
 where statecd not in ('AA', 'AE', 'AK', 'AL', 'AP', 'AR', 'AS', 'AZ', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL', 'GA', 'GU', 'HI', 'IA', 'ID', 'IL', 'IN', 'KS', 'KY', 'LA', 'MA', 'MD',
 'ME', 'MI, 'MN', 'MO', 'MP', 'MS', 'MT', 'NC', 'ND', 'NE', 'NH', 'NJ', 'NM', 'NV', 'NY', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VA', 'VI', 'VT', 'WA', 'WI', 'WV', 'WY');
@@ -680,7 +682,7 @@ run;
 /******** PRINT CA PERCENT CHECK *******/
 
 ods html body="/workspace/ccsec/mockpool/CA_bal_check.xls"; 
-         proc report data-state_brk;
+         proc report data = state_brk;
          column State currbal, (sum pctsum);
          define currbal / format-dollar16.0 'Balance';
          define sum / format-dollar16.0 'Total Balance';
@@ -691,11 +693,10 @@ ods html body="/workspace/ccsec/mockpool/CA_bal_check.xls";
 ods html close;
 
 /******** CHECK FICO<660 BALANCES AS PERCENT OF TOTAL *******/
-proc means data-mockpool. final sum missing nway noprint;
+proc means data=mockpool.final sum missing nway noprint;
 var currbal;
-
 class ficocat;
-output out-fico_brk sum=; 
+output out=fico_brk sum=; 
 run;
 
 data fico_brk;
@@ -725,14 +726,14 @@ set mockpool.final (keep-account_id);
 run;
 
 ods listing close;
-ods csvall file="/workspace/ccsec/mockpool/data/ccsec_mockpool_acct.csv"; proc print data-mockpool.ccsec_mockpool_acct noobs;
+ods csvall file="/workspace/ccsec/mockpool/data/ccsec_mockpool_acct.csv"; proc print data=mockpool.ccsec_mockpool_acct noobs;
 title;
 run;
 ods csvall close;
 
 /******** CREATE TEXT FILE OF ONLY ACCOUNT_ID'S TO SHARE WITH PLEDGE TEAM/SMC *******/ 
 
-proc export data-mockpool.ccsec_mockpool_acct
+proc export data = mockpool.ccsec_mockpool_acct
 outfile="/workspace/ccsec/mockpool/data/MockNew900.txt"
 dbms-tab
 replace;
